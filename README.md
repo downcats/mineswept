@@ -1,5 +1,5 @@
 
-# Mineswept 🚩💣
+# mineswept 🚩💣
 
 Headless Minesweeper environment and learning agents that improve over time via online updates + deterministic rules.
 
