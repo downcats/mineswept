@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+
+# Virtual env
+.venv/
+venv/
+ENV/
+
+# macOS
+.DS_Store
+
+# Logs & checkpoints (large, reproducible)
+logs/**
+checkpoints/**
+
+# Editor
+.vscode/
+.idea/
