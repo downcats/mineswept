@@ -1,9 +1,9 @@
 
-# Mineswept
+# Mineswept 🚩💣
 
-Headless Minesweeper environment and learning agents that improve over time via online updates plus deterministic rules.
+Headless Minesweeper environment and learning agents that improve over time via online updates + deterministic rules.
 
-## Setup
+## 🛠️ Setup
 
 1) Create a virtual environment and install requirements
 
@@ -13,20 +13,20 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Components
+## 🧩 Components
 
-- `minesweeper/engine.py`: Game logic and ASCII renderer
-- `minesweeper/features.py`: Rich feature extraction for candidate cells
-- `minesweeper/agents/rule_agent.py`: Deterministic safe/mine inference rules
-- `minesweeper/agents/online_lr_agent.py`: Online logistic regression agent with save/load
-- `minesweeper/agents/mlp_agent.py`: Two-layer MLP agent trained online with backprop
-- `train.py`: Self-play training loop with CSV logging, autosave, auto-resume, and checkpoints
-- `play.py`: Play in CLI with live learning and autosave
-- `report.py`: Summarize logs into a Markdown report
+- `minesweeper/engine.py` — Game logic and ASCII renderer
+- `minesweeper/features.py` — Rich feature extraction for candidate cells
+- `minesweeper/agents/rule_agent.py` — Deterministic safe/mine inference rules
+- `minesweeper/agents/online_lr_agent.py` — Online logistic regression agent with save/load
+- `minesweeper/agents/mlp_agent.py` — Two-layer MLP agent trained online with backprop
+- `train.py` — Self-play training loop with CSV logging, autosave, auto-resume, and checkpoints
+- `play.py` — Play in CLI with live learning and autosave
+- `report.py` — Summarize logs into a Markdown report
 
-## Quick start
+## 🚀 Quick start
 
-Hard-mode defaults (16x16, 40 mines) are enabled for both train and play.
+Hard-mode defaults (16×16, 40 mines) are enabled for both train and play.
 
 Train with autosave and logging (MLP agent):
 
@@ -52,7 +52,7 @@ Generate a report from a log:
 python report.py --log_csv logs/train_mlp.csv --out REPORT.md
 ```
 
-## How learning works
+## 🧠 How learning works
 
 - After each reveal, the agent gets a label: mine=1, safe=0
 - It updates its model to reduce predicted mine probability for safe cells and increase it for mines
@@ -60,7 +60,7 @@ python report.py --log_csv logs/train_mlp.csv --out REPORT.md
 - Logistic agent uses a numerically stable sigmoid and gradient clipping
 - MLP agent uses 2 ReLU layers with a sigmoid output, trained online via backprop
 
-## Logging
+## 📈 Logging
 
 Training writes `logs/*.csv` with per-episode metrics and periodic eval rows, including:
 
@@ -75,14 +75,14 @@ Tail the log:
 tail -n 20 logs/train_mlp.csv
 ```
 
-## Checkpoints
+## 💾 Checkpoints
 
 - Autosave to `checkpoints/latest.npz` after each episode in training and after each game in play
 - Periodic archival checkpoints at `checkpoints/agent_ep{N}.npz` via `--ckpt_every`
 - Auto-resume respects `--agent` type; if mismatch, a fresh agent is initialized
 - You can still explicitly `--resume` any checkpoint
 
-## Configuration
+## ⚙️ Configuration
 
 Common flags:
 
@@ -94,8 +94,12 @@ Common flags:
 - `--log_csv`, `--log_every`: CSV file and frequency
 - `--ckpt_dir`, `--ckpt_every`, `--resume`, `--auto_resume_latest`
 
-## Notes
+## 📝 Notes
 
 - First click is guaranteed safe and expands zeroes recursively
 - The model is intentionally simple and fast; you can extend features or swap in a more expressive learner later
+
+---
+
+Made with ❤️ for classic puzzle fans.
 
