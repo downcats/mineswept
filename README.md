@@ -23,7 +23,7 @@ pip install -r requirements.txt
 - `train.py` — Self-play training loop with CSV logging, autosave, auto-resume, and checkpoints
 - `play.py` — Play in CLI with live learning and autosave
 - `report.py` — Summarize logs into a Markdown report
-- `gui.py` — Simple Tkinter GUI to watch training/play in real-time
+- `gui_dashboard.py` — Sleek pygame dashboard GUI with menu (Train/Play) and live stats
 
 ## 🚀 Quick start
 
@@ -52,10 +52,10 @@ Generate a report from a log:
 ```bash
 python report.py --log_csv logs/train_mlp.csv --out REPORT.md
 
-Watch it play in a simple GUI (auto-resume latest):
+Launch the sleek dashboard GUI (menu → Train/Play):
 
 ```bash
-python gui.py
+python gui_dashboard.py
 ```
 ```
 
