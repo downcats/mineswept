@@ -7,6 +7,7 @@ import numpy as np
 from minesweeper.engine import Minesweeper
 from minesweeper.features import extract_cell_features
 from minesweeper.agents.online_lr_agent import OnlineLogisticAgent
+from minesweeper.agents.mlp_agent import MLPAgent
 
 FEATURE_DIM = None
 
@@ -18,6 +19,11 @@ def play_episode(agent: OnlineLogisticAgent, width: int, height: int, mines: int
     flag_actions = 0
     prob_sum = 0.0
     prob_count = 0
+    prob_sum_safe = 0.0
+    prob_count_safe = 0
+    prob_sum_mine = 0.0
+    prob_count_mine = 0
+    reveal_mines = 0
     # Online loop
     while not env.game_over:
         kind, (x, y) = agent.next_action(env)
@@ -36,12 +42,23 @@ def play_episode(agent: OnlineLogisticAgent, width: int, height: int, mines: int
         if learn:
             y_label = 1.0 if was_mine else 0.0
             agent.update(xfeat, y_label)
+        if was_mine:
+            reveal_mines += 1
+            prob_sum_mine += float(p_mine)
+            prob_count_mine += 1
+        else:
+            prob_sum_safe += float(p_mine)
+            prob_count_safe += 1
     metrics = {
         'reveal_actions': reveal_actions,
         'flag_actions': flag_actions,
         'total_actions': reveal_actions + flag_actions,
         'final_revealed': env.revealed_count,
         'avg_pred_p_mine': (prob_sum / prob_count) if prob_count > 0 else 0.0,
+        'avg_pred_p_mine_safe': (prob_sum_safe / prob_count_safe) if prob_count_safe > 0 else None,
+        'avg_pred_p_mine_mine': (prob_sum_mine / prob_count_mine) if prob_count_mine > 0 else None,
+        'reveal_mines': reveal_mines,
+        'reveal_mine_rate': (reveal_mines / reveal_actions) if reveal_actions > 0 else None,
     }
     return env.win, metrics
 
@@ -58,13 +75,14 @@ def append_csv_row(csv_path: Path, row: dict, header_order: list[str]):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--width', type=int, default=9)
-    parser.add_argument('--height', type=int, default=9)
-    parser.add_argument('--mines', type=int, default=10)
+    parser.add_argument('--width', type=int, default=16)
+    parser.add_argument('--height', type=int, default=16)
+    parser.add_argument('--mines', type=int, default=40)
     parser.add_argument('--episodes', type=int, default=2000)
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--lr', type=float, default=0.05)
     parser.add_argument('--l2', type=float, default=1e-4)
+    parser.add_argument('--agent', type=str, default='mlp', choices=['lr','mlp'])
     parser.add_argument('--eval_every', type=int, default=200)
     parser.add_argument('--log_csv', type=str, default='logs/train_log.csv')
     parser.add_argument('--log_every', type=int, default=1)
@@ -79,21 +97,46 @@ def main():
     dummy = Minesweeper(args.width, args.height, args.mines, seed=args.seed)
     fx = extract_cell_features(dummy, 0, 0)
     latest_path = Path(args.ckpt_dir) / 'latest.npz'
+    def init_agent():
+        if args.agent == 'lr':
+            return OnlineLogisticAgent(feature_dim=fx.shape[0], lr=args.lr, l2=args.l2, seed=args.seed)
+        else:
+            return MLPAgent(feature_dim=fx.shape[0], hidden_sizes=(64,64), lr=0.01, l2=1e-5, seed=args.seed)
+    def load_agent(path: Path):
+        # Try MLP first, then LR
+        try:
+            return MLPAgent.load(path)
+        except Exception:
+            ag = OnlineLogisticAgent.load(path)
+            # If features changed, adapt LR weights
+            if hasattr(ag, 'adapt_feature_dim'):
+                ag.adapt_feature_dim(fx.shape[0])
+            return ag
     if args.resume:
-        agent = OnlineLogisticAgent.load(args.resume)
+        agent = load_agent(Path(args.resume))
         print(f"[train] Loaded checkpoint: {args.resume}")
     elif args.auto_resume_latest and latest_path.exists():
-        agent = OnlineLogisticAgent.load(latest_path)
-        print(f"[train] Auto-resumed from {latest_path}")
+        # Respect requested agent type: only auto-resume if checkpoint matches, else init new
+        try:
+            ag = load_agent(latest_path)
+            if (args.agent == 'mlp' and isinstance(ag, MLPAgent)) or (args.agent == 'lr' and isinstance(ag, OnlineLogisticAgent)):
+                agent = ag
+                print(f"[train] Auto-resumed from {latest_path}")
+            else:
+                agent = init_agent()
+                print(f"[train] latest.npz type mismatch for --agent={args.agent}; initialized new agent")
+        except Exception:
+            agent = init_agent()
+            print(f"[train] Failed to load latest.npz; initialized new agent")
     else:
-        agent = OnlineLogisticAgent(feature_dim=fx.shape[0], lr=args.lr, l2=args.l2, seed=args.seed)
+        agent = init_agent()
         print("[train] Initialized new agent")
 
     rng = np.random.default_rng(args.seed)
     wins_recent = 0
     header = [
         'phase','episode','seed','width','height','mines','lr','l2',
-        'win','reveal_actions','flag_actions','total_actions','final_revealed','avg_pred_p_mine','w_norm','w_bias',
+        'win','reveal_actions','flag_actions','total_actions','final_revealed','avg_pred_p_mine','avg_pred_p_mine_safe','avg_pred_p_mine_mine','reveal_mines','reveal_mine_rate','w_norm','w_bias',
         'recent_train_win_rate','eval_win_rate'
     ]
     csv_path = Path(args.log_csv)

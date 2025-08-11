@@ -1,7 +1,7 @@
 
 # Mineswept
 
-Headless Minesweeper environment and a learning agent that improves over time via online logistic regression plus deterministic rules.
+Headless Minesweeper environment and learning agents that improve over time via online updates plus deterministic rules.
 
 ## Setup
 
@@ -16,24 +16,28 @@ pip install -r requirements.txt
 ## Components
 
 - `minesweeper/engine.py`: Game logic and ASCII renderer
-- `minesweeper/features.py`: Feature extraction for candidate cells
+- `minesweeper/features.py`: Rich feature extraction for candidate cells
 - `minesweeper/agents/rule_agent.py`: Deterministic safe/mine inference rules
 - `minesweeper/agents/online_lr_agent.py`: Online logistic regression agent with save/load
-- `train.py`: Self-play training loop with CSV logging and checkpoints
+- `minesweeper/agents/mlp_agent.py`: Two-layer MLP agent trained online with backprop
+- `train.py`: Self-play training loop with CSV logging, autosave, auto-resume, and checkpoints
 - `play.py`: Play in CLI with live learning and autosave
+- `report.py`: Summarize logs into a Markdown report
 
 ## Quick start
 
-Train with autosave and logging:
+Hard-mode defaults (16x16, 40 mines) are enabled for both train and play.
+
+Train with autosave and logging (MLP agent):
 
 ```bash
-python train.py --episodes 2000 --eval_every 200 --log_every 1 --log_csv logs/train_log.csv
+python train.py --agent mlp --episodes 2000 --eval_every 200 --log_every 1 --log_csv logs/train_mlp.csv
 ```
 
 Play a game using the latest checkpoint (auto-resume):
 
 ```bash
-python play.py --delay 0.05
+python play.py --agent mlp --delay 0.05
 ```
 
 Resume from a specific checkpoint:
@@ -42,37 +46,48 @@ Resume from a specific checkpoint:
 python play.py --resume checkpoints/agent_ep20.npz
 ```
 
+Generate a report from a log:
+
+```bash
+python report.py --log_csv logs/train_mlp.csv --out REPORT.md
+```
+
 ## How learning works
 
 - After each reveal, the agent gets a label: mine=1, safe=0
-- It updates its weights to reduce predicted mine probability for safe cells and increase it for mines
+- It updates its model to reduce predicted mine probability for safe cells and increase it for mines
 - Deterministic rules are tried first; the model scores remaining hidden cells by predicted safety
+- Logistic agent uses a numerically stable sigmoid and gradient clipping
+- MLP agent uses 2 ReLU layers with a sigmoid output, trained online via backprop
 
 ## Logging
 
-Training writes `logs/train_log.csv` with per-episode metrics and periodic eval rows:
+Training writes `logs/*.csv` with per-episode metrics and periodic eval rows, including:
 
-- `win`, `reveal_actions`, `flag_actions`, `total_actions`, `final_revealed`, `avg_pred_p_mine`
-- `w_norm`, `w_bias` show weight evolution
-- Eval rows include `recent_train_win_rate` and `eval_win_rate`
+- Episode: `win`, `reveal_actions`, `flag_actions`, `total_actions`, `final_revealed`
+- Predictions: `avg_pred_p_mine`, `avg_pred_p_mine_safe`, `avg_pred_p_mine_mine`, `reveal_mines`, `reveal_mine_rate`
+- Model: `w_norm`, `w_bias` (for MLP these reflect total norm and output bias)
+- Eval rows: `recent_train_win_rate`, `eval_win_rate`
 
 Tail the log:
 
 ```bash
-tail -n 20 logs/train_log.csv
+tail -n 20 logs/train_mlp.csv
 ```
 
 ## Checkpoints
 
 - Autosave to `checkpoints/latest.npz` after each episode in training and after each game in play
 - Periodic archival checkpoints at `checkpoints/agent_ep{N}.npz` via `--ckpt_every`
-- Resume automatically from `latest.npz` or specify `--resume` explicitly
+- Auto-resume respects `--agent` type; if mismatch, a fresh agent is initialized
+- You can still explicitly `--resume` any checkpoint
 
 ## Configuration
 
 Common flags:
 
-- `--width`, `--height`, `--mines`: board size and mine count (default 9x9, 10 mines)
+- `--width`, `--height`, `--mines`: board size and mine count (defaults: 16x16, 40 mines)
+- `--agent {lr,mlp}`: learner type (online logistic or 2-layer MLP)
 - `--lr`, `--l2`: learning rate and L2 regularization strength
 - `--episodes`: number of episodes to run in training
 - `--eval_every`: how often to run evaluation

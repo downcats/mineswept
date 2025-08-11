@@ -15,11 +15,21 @@ class OnlineLogisticAgent:
 
     def predict_proba(self, x: np.ndarray) -> float:
         z = float(x @ self.w)
-        return 1.0 / (1.0 + np.exp(-z))
+        # Numerically stable sigmoid
+        if z >= 0:
+            ez = np.exp(-z)
+            return 1.0 / (1.0 + ez)
+        else:
+            ez = np.exp(z)
+            return ez / (1.0 + ez)
 
     def update(self, x: np.ndarray, y: float) -> None:
         p = self.predict_proba(x)
         grad = (p - y) * x + self.l2 * self.w
+        # Gradient clipping to avoid exploding updates
+        grad_norm = float(np.linalg.norm(grad))
+        if grad_norm > 5.0:
+            grad = grad * (5.0 / grad_norm)
         self.w -= self.lr * grad
 
     def next_action(self, board) -> Tuple[str, Tuple[int, int]]:
@@ -50,11 +60,13 @@ class OnlineLogisticAgent:
     def save(self, path: Union[str, Path]) -> None:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        np.savez_compressed(path, w=self.w, lr=np.array(self.lr), l2=np.array(self.l2))
+        np.savez_compressed(path, agent=np.array('lr'), w=self.w, lr=np.array(self.lr), l2=np.array(self.l2))
 
     @classmethod
     def load(cls, path: Union[str, Path]) -> 'OnlineLogisticAgent':
         data = np.load(Path(path), allow_pickle=False)
+        if 'agent' in data and str(data['agent']) not in ('lr', 'OnlineLogisticAgent'):
+            raise ValueError('Checkpoint is not for OnlineLogisticAgent')
         w = data['w']
         lr = float(data['lr']) if 'lr' in data else 0.05
         l2 = float(data['l2']) if 'l2' in data else 1e-4
@@ -66,4 +78,14 @@ class OnlineLogisticAgent:
         w_norm = float(np.linalg.norm(self.w))
         bias_weight = float(self.w[-1]) if self.w.size > 0 else 0.0
         return w_norm, bias_weight
+
+    def adapt_feature_dim(self, new_dim: int) -> None:
+        old_dim = int(self.w.shape[0])
+        if new_dim == old_dim:
+            return
+        if new_dim > old_dim:
+            add = self.rng.normal(scale=0.01, size=(new_dim - old_dim,))
+            self.w = np.concatenate([self.w, add], axis=0)
+        else:
+            self.w = self.w[:new_dim]
 
