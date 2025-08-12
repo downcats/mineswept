@@ -18,8 +18,7 @@ pip install -r requirements.txt
 - `minesweeper/engine.py` — Game logic and ASCII renderer
 - `minesweeper/features.py` — Rich feature extraction for candidate cells
 - `minesweeper/agents/rule_agent.py` — Deterministic safe/mine inference rules
-- `minesweeper/agents/online_lr_agent.py` — Online logistic regression agent with save/load
-- `minesweeper/agents/mlp_agent.py` — Two-layer MLP agent trained online with backprop
+- `minesweeper/agents/gnn_agent.py` — Graph Neural Network agent (message passing over clue→hidden graph), online Adam (PyTorch)
 - `train.py` — Self-play training loop with CSV logging, autosave, auto-resume, and checkpoints
 - `play.py` — Play in CLI with live learning and autosave
 - `report.py` — Summarize logs into a Markdown report
@@ -29,16 +28,16 @@ pip install -r requirements.txt
 
 Hard-mode defaults (16×16, 40 mines) are enabled for both train and play.
 
-Train with autosave and logging (MLP agent):
+Train with autosave and logging (GNN agent):
 
 ```bash
-python train.py --agent mlp --episodes 2000 --eval_every 200 --log_every 1 --log_csv logs/train_mlp.csv
+python train.py --episodes 2000 --eval_every 200 --log_every 1 --log_csv logs/train_gnn.csv
 ```
 
 Play a game using the latest checkpoint (auto-resume):
 
 ```bash
-python play.py --agent mlp --delay 0.05
+python play.py --delay 0.05
 ```
 
 Resume from a specific checkpoint:
@@ -66,6 +65,7 @@ python gui_dashboard.py
 - Deterministic rules are tried first; the model scores remaining hidden cells by predicted safety
 - Logistic agent uses a numerically stable sigmoid and gradient clipping
 - MLP agent uses 2 ReLU layers with a sigmoid output, trained online via backprop
+- Hybrid agent combines a wide linear term, an FM interaction term, and a deep MLP branch; logits are summed and trained online with Adam
 
 ## 📈 Logging
 
@@ -94,7 +94,7 @@ tail -n 20 logs/train_mlp.csv
 Common flags:
 
 - `--width`, `--height`, `--mines`: board size and mine count (defaults: 16x16, 40 mines)
-- `--agent {lr,mlp}`: learner type (online logistic or 2-layer MLP)
+- `--agent gnn`: learner type (Graph NN)
 - `--lr`, `--l2`: learning rate and L2 regularization strength
 - `--episodes`: number of episodes to run in training
 - `--eval_every`: how often to run evaluation

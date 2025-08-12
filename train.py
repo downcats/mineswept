@@ -6,12 +6,11 @@ from pathlib import Path
 import numpy as np
 from minesweeper.engine import Minesweeper
 from minesweeper.features import extract_cell_features
-from minesweeper.agents.online_lr_agent import OnlineLogisticAgent
-from minesweeper.agents.mlp_agent import MLPAgent
+from minesweeper.agents.gnn_agent import GNNAgent
 
 FEATURE_DIM = None
 
-def play_episode(agent: OnlineLogisticAgent, width: int, height: int, mines: int, seed: int | None = None, learn: bool = True):
+def play_episode(agent, width: int, height: int, mines: int, seed: int | None = None, learn: bool = True):
     env = Minesweeper(width, height, mines, seed=seed)
     first = (width // 2, height // 2)
     env.reveal(*first)
@@ -80,9 +79,9 @@ def main():
     parser.add_argument('--mines', type=int, default=40)
     parser.add_argument('--episodes', type=int, default=2000)
     parser.add_argument('--seed', type=int, default=-1, help='Base RNG seed; <0 uses OS entropy (random every run)')
-    parser.add_argument('--lr', type=float, default=0.05)
-    parser.add_argument('--l2', type=float, default=1e-4)
-    parser.add_argument('--agent', type=str, default='mlp', choices=['lr','mlp'])
+    parser.add_argument('--lr', type=float, default=0.001)
+    parser.add_argument('--l2', type=float, default=1e-6)
+    parser.add_argument('--agent', type=str, default='gnn', choices=['gnn'])
     parser.add_argument('--eval_every', type=int, default=200)
     parser.add_argument('--log_csv', type=str, default='logs/train_log.csv')
     parser.add_argument('--log_every', type=int, default=1)
@@ -98,33 +97,17 @@ def main():
     fx = extract_cell_features(dummy, 0, 0)
     latest_path = Path(args.ckpt_dir) / 'latest.npz'
     def init_agent():
-        if args.agent == 'lr':
-            return OnlineLogisticAgent(feature_dim=fx.shape[0], lr=args.lr, l2=args.l2, seed=args.seed)
-        else:
-            return MLPAgent(feature_dim=fx.shape[0], hidden_sizes=(64,64), lr=0.01, l2=1e-5, seed=args.seed)
+        safe_seed = (None if args.seed < 0 else args.seed)
+        return GNNAgent(feature_dim=fx.shape[0], lr=args.lr, l2=args.l2, seed=(0 if safe_seed is None else safe_seed))
     def load_agent(path: Path):
-        # Try MLP first, then LR
-        try:
-            return MLPAgent.load(path)
-        except Exception:
-            ag = OnlineLogisticAgent.load(path)
-            # If features changed, adapt LR weights
-            if hasattr(ag, 'adapt_feature_dim'):
-                ag.adapt_feature_dim(fx.shape[0])
-            return ag
+        return GNNAgent.load(path)
     if args.resume:
         agent = load_agent(Path(args.resume))
         print(f"[train] Loaded checkpoint: {args.resume}")
     elif args.auto_resume_latest and latest_path.exists():
-        # Respect requested agent type: only auto-resume if checkpoint matches, else init new
         try:
-            ag = load_agent(latest_path)
-            if (args.agent == 'mlp' and isinstance(ag, MLPAgent)) or (args.agent == 'lr' and isinstance(ag, OnlineLogisticAgent)):
-                agent = ag
-                print(f"[train] Auto-resumed from {latest_path}")
-            else:
-                agent = init_agent()
-                print(f"[train] latest.npz type mismatch for --agent={args.agent}; initialized new agent")
+            agent = load_agent(latest_path)
+            print(f"[train] Auto-resumed from {latest_path}")
         except Exception:
             agent = init_agent()
             print(f"[train] Failed to load latest.npz; initialized new agent")

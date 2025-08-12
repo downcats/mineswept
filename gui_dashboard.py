@@ -6,8 +6,7 @@ from dataclasses import dataclass
 
 from minesweeper.engine import Minesweeper
 from minesweeper.features import extract_cell_features
-from minesweeper.agents.online_lr_agent import OnlineLogisticAgent
-from minesweeper.agents.mlp_agent import MLPAgent
+from minesweeper.agents.gnn_agent import GNNAgent
 
 
 WHITE = (250, 250, 250)
@@ -47,25 +46,14 @@ class SessionStats:
         return (self.mine_hits / self.reveals) if self.reveals > 0 else 0.0
 
 
-def load_agent(agent_type: str, feature_dim: int):
+def load_agent(feature_dim: int):
     latest = Path('checkpoints') / 'latest.npz'
-    if agent_type == 'mlp':
-        if latest.exists():
-            try:
-                return MLPAgent.load(latest)
-            except Exception:
-                pass
-        return MLPAgent(feature_dim=feature_dim, hidden_sizes=(64, 64), lr=0.01, l2=1e-5)
-    else:
-        if latest.exists():
-            try:
-                ag = OnlineLogisticAgent.load(latest)
-                if hasattr(ag, 'adapt_feature_dim'):
-                    ag.adapt_feature_dim(feature_dim)
-                return ag
-            except Exception:
-                pass
-        return OnlineLogisticAgent(feature_dim=feature_dim, lr=0.05, l2=1e-4)
+    if latest.exists():
+        try:
+            return GNNAgent.load(latest)
+        except Exception:
+            pass
+    return GNNAgent(feature_dim=feature_dim, lr=0.001, l2=1e-6)
 
 
 class DashboardGUI:
@@ -78,7 +66,7 @@ class DashboardGUI:
         pg.display.set_caption('Mineswept — Dashboard')
 
         # Default settings
-        self.agent_type = 'mlp'
+        self.agent_type = 'gnn'
         self.width, self.height, self.mines = 16, 16, 40
         self.cell = 28
         self.padding = 12
@@ -86,7 +74,7 @@ class DashboardGUI:
 
         self.env = Minesweeper(self.width, self.height, self.mines, seed=None)
         fx = extract_cell_features(self.env, 0, 0)
-        self.agent = load_agent(self.agent_type, fx.shape[0])
+        self.agent = load_agent(fx.shape[0])
         self.env.reveal(self.width // 2, self.height // 2)
 
         self.stats = SessionStats()
@@ -209,14 +197,13 @@ class DashboardGUI:
 
     def _reset_agent(self):
         fx = extract_cell_features(self.env, 0, 0)
-        self.agent = load_agent(self.agent_type, fx.shape[0])
+        self.agent = load_agent(fx.shape[0])
         self.stats = SessionStats()
 
     def handle_menu_keys(self, event):
         if event.key == pg.K_RETURN:
             self.mode = 'train'
         elif event.key == pg.K_a:
-            self.agent_type = 'lr' if self.agent_type == 'mlp' else 'mlp'
             self._reset_agent()
         elif event.key == pg.K_b:
             # cycle board sizes
